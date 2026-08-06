@@ -41,19 +41,25 @@ static inline int d3d_create_device(void ** device) {
 
 static int d3d_init_adapter() {
   IDXGIFactory6 * factory6;
-  // Adapted from MS example. Their logic kinda always select an adapter, even
-  // when unsuitable.
   if (COM_OK(d3d_factory, QueryInterface, &IID_IDXGIFactory6, (void **)&factory6)) {
     for (unsigned i = 0; d3d_enum_adapter_by_gpu(factory6, i); i++) {
       if (d3d_adapter_is_software()) continue;
       if (0 == d3d_create_device(NULL)) return 0;
     }
   }
+
   for (unsigned i = 0; d3d_enum_adapter(i); i++) {
     if (d3d_adapter_is_software()) continue;
     if (0 == d3d_create_device(NULL)) return 0;
   }
-  // TODO: enable "WARP" and use software rendering, if any?
+
+  IDXGIFactory4 * factory4;
+  if (COM_OK(d3d_factory, QueryInterface, &IID_IDXGIFactory4, (void **)&factory4)) {
+    if (COM_OK(factory4, EnumWarpAdapter, &IID_IDXGIAdapter1, (void **)&d3d_adapter)) {
+      if (0 == d3d_create_device(NULL)) return 0;
+    }
+  }
+
   // TODO: warn if no suitable device found
   return 1;
 }
