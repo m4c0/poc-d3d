@@ -27,11 +27,16 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
 #define COM_OK(obj, method, ...) SUCCEEDED(COM(obj, method, __VA_ARGS__))
 #define COM_CHK(obj, method, ...) if (FAILED(COM(obj, method, __VA_ARGS__))) return 1
 
-static IDXGIFactory3      * d3d_factory;
-static IDXGIAdapter1      * d3d_adapter;
-static ID3D12Device       * d3d_device;
-static ID3D12CommandQueue * d3d_queue;
-static IDXGISwapChain3    * d3d_swc;
+static IDXGIFactory4        * d3d_factory;
+static IDXGIAdapter1        * d3d_adapter;
+static ID3D12Device         * d3d_device;
+static ID3D12CommandQueue   * d3d_queue;
+static IDXGISwapChain3      * d3d_swc;
+static ID3D12DescriptorHeap * d3d_rtv_heap;
+
+static ID3D12Resource * d3d_rt[BUFFER_COUNT];
+
+static unsigned d3d_frame_idx;
 
 static inline int d3d_enum_adapter_by_gpu(IDXGIFactory6 * f6, unsigned i) {
   return COM_OK(f6, EnumAdapterByGpuPreference, i, DXGI_GPU_PREFERENCE_UNSPECIFIED, &IID_IDXGIAdapter1, (void **)&d3d_adapter);
@@ -61,9 +66,7 @@ static int d3d_init_adapter(void) {
     if (0 == d3d_create_device()) return 0;
   }
 
-  IDXGIFactory4 * factory4;
-  COM_CHK(d3d_factory, QueryInterface, &IID_IDXGIFactory4, (void **)&factory4);
-  COM_CHK(factory4, EnumWarpAdapter, &IID_IDXGIAdapter1, (void **)&d3d_adapter);
+  COM_CHK(d3d_factory, EnumWarpAdapter, &IID_IDXGIAdapter1, (void **)&d3d_adapter);
   return d3d_create_device();
 }
 
@@ -92,23 +95,54 @@ static int d3d_init_swapchain(HWND hwnd) {
   return 0;
 }
 
+static int d3d_init_rtv_heap(void) {
+  D3D12_DESCRIPTOR_HEAP_DESC desc = {
+    .Type           = D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
+    .NumDescriptors = BUFFER_COUNT,
+  };
+  COM_CHK(d3d_device, CreateDescriptorHeap, &desc, &IID_ID3D12DescriptorHeap, (void **)&d3d_rtv_heap);
+  return 0;
+}
+
+typedef void (STDMETHODCALLTYPE * d3d_get_cpu_desc_t)(ID3D12DescriptorHeap *, D3D12_CPU_DESCRIPTOR_HANDLE *);
+static int d3d_init_rtv(void) {
+  D3D12_CPU_DESCRIPTOR_HANDLE h;
+  ((d3d_get_cpu_desc_t)d3d_rtv_heap->lpVtbl->GetCPUDescriptorHandleForHeapStart)(d3d_rtv_heap, &h);
+
+  unsigned incr = COM(d3d_device, GetDescriptorHandleIncrementSize, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+  for (int i = 0; i < BUFFER_COUNT; i++) {
+    COM_CHK(d3d_swc, GetBuffer, i, &IID_ID3D12Resource, (void **)&d3d_rt[i]);
+    COM(d3d_device, CreateRenderTargetView, d3d_rt[i], NULL, h);
+    h.ptr += incr;
+  }
+  return 0;
+}
+
 int d3d_init(HWND hwnd) {
-  if (FAILED(CreateDXGIFactory2(0, &IID_IDXGIFactory3, (void **)&d3d_factory))) return 1;
-  if (d3d_init_adapter()) return 1;
-  if (d3d_init_queue()) return 1;
+  if (FAILED(CreateDXGIFactory2(0, &IID_IDXGIFactory4, (void **)&d3d_factory))) return 1;
+
+  if (d3d_init_adapter())       return 1;
+  if (d3d_init_queue())         return 1;
   if (d3d_init_swapchain(hwnd)) return 1;
 
   COM_CHK(d3d_factory, MakeWindowAssociation, hwnd, DXGI_MWA_NO_ALT_ENTER);
+  d3d_frame_idx = COM(d3d_swc, GetCurrentBackBufferIndex);
+
+  if (d3d_init_rtv_heap()) return 1;
+  if (d3d_init_rtv())      return 1;
 
   return 0;
 }
 
 void d3d_deinit(void) {
-  COM(d3d_swc,     Release);
-  COM(d3d_queue,   Release);
-  COM(d3d_device,  Release);
-  COM(d3d_adapter, Release);
-  COM(d3d_factory, Release);
+  for (int i = 0; i < BUFFER_COUNT; i++) COM(d3d_rt[i], Release);
+
+  COM(d3d_rtv_heap, Release);
+  COM(d3d_swc,      Release);
+  COM(d3d_queue,    Release);
+  COM(d3d_device,   Release);
+  COM(d3d_adapter,  Release);
+  COM(d3d_factory,  Release);
 }
 
 int WINAPI WinMain(HINSTANCE h_inst, HINSTANCE h_prev, LPSTR cmdline, int n_cmd_show) {
