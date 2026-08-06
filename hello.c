@@ -20,9 +20,11 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
 
 #define COM(obj, method, ...) (obj)->lpVtbl->method(obj, __VA_ARGS__)
 #define COM_OK(obj, method, ...) SUCCEEDED(COM(obj, method, __VA_ARGS__))
+#define COM_CHK(obj, method, ...) if (FAILED(COM(obj, method, __VA_ARGS__))) return 1
 
 static IDXGIFactory3 * d3d_factory;
 static IDXGIAdapter1 * d3d_adapter;
+static ID3D12Device * d3d_device;
 
 static inline int d3d_enum_adapter_by_gpu(IDXGIFactory6 * f6, unsigned i) {
   return COM_OK(f6, EnumAdapterByGpuPreference, i, DXGI_GPU_PREFERENCE_UNSPECIFIED, &IID_IDXGIAdapter1, (void **)&d3d_adapter);
@@ -35,8 +37,8 @@ static inline int d3d_adapter_is_software(void) {
   COM(d3d_adapter, GetDesc1, &desc);
   return desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE;
 }
-static inline int d3d_create_device(void ** device) {
-  return FAILED(D3D12CreateDevice((IUnknown *)d3d_adapter, D3D_FEATURE_LEVEL_11_0, &IID_ID3D12Device, NULL));
+static inline int d3d_create_device(void) {
+  return FAILED(D3D12CreateDevice((IUnknown *)d3d_adapter, D3D_FEATURE_LEVEL_11_0, &IID_ID3D12Device, (void **)&d3d_device));
 }
 
 static int d3d_init_adapter(void) {
@@ -44,24 +46,19 @@ static int d3d_init_adapter(void) {
   if (COM_OK(d3d_factory, QueryInterface, &IID_IDXGIFactory6, (void **)&factory6)) {
     for (unsigned i = 0; d3d_enum_adapter_by_gpu(factory6, i); i++) {
       if (d3d_adapter_is_software()) continue;
-      if (0 == d3d_create_device(NULL)) return 0;
+      if (0 == d3d_create_device()) return 0;
     }
   }
 
   for (unsigned i = 0; d3d_enum_adapter(i); i++) {
     if (d3d_adapter_is_software()) continue;
-    if (0 == d3d_create_device(NULL)) return 0;
+    if (0 == d3d_create_device()) return 0;
   }
 
   IDXGIFactory4 * factory4;
-  if (COM_OK(d3d_factory, QueryInterface, &IID_IDXGIFactory4, (void **)&factory4)) {
-    if (COM_OK(factory4, EnumWarpAdapter, &IID_IDXGIAdapter1, (void **)&d3d_adapter)) {
-      if (0 == d3d_create_device(NULL)) return 0;
-    }
-  }
-
-  // TODO: warn if no suitable device found
-  return 1;
+  COM_CHK(d3d_factory, QueryInterface, &IID_IDXGIFactory4, (void **)&factory4);
+  COM_CHK(factory4, EnumWarpAdapter, &IID_IDXGIAdapter1, (void **)&d3d_adapter);
+  return d3d_create_device();
 }
 
 int d3d_init(void) {
@@ -72,6 +69,8 @@ int d3d_init(void) {
 }
 
 void d3d_deinit(void) {
+  COM(d3d_device,  Release);
+  COM(d3d_adapter, Release);
   COM(d3d_factory, Release);
 }
 
