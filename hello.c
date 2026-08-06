@@ -1,5 +1,12 @@
 #define WIN32_LEAN_AND_MEAN
+#include <d3d12.h>
+#include <dxgi1_3.h>
 #include <windows.h>
+
+#pragma comment(lib, "d3d12.lib")
+#pragma comment(lib, "dxgi.lib")
+#pragma comment(lib, "dxguid.lib")
+#pragma comment(lib, "user32.lib")
 
 LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
   switch (message) {
@@ -8,6 +15,12 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
       return 0;
   }
   return DefWindowProc(hwnd, message, wp, lp);
+}
+
+static IDXGIFactory3 * d3d_factory;
+int d3d_init() {
+  if (FAILED(CreateDXGIFactory2(0, &IID_IDXGIFactory3, (void **)&d3d_factory))) return 1;
+  return 0;
 }
 
 int WINAPI WinMain(HINSTANCE h_inst, HINSTANCE h_prev, LPSTR cmdline, int n_cmd_show) {
@@ -26,6 +39,8 @@ int WINAPI WinMain(HINSTANCE h_inst, HINSTANCE h_prev, LPSTR cmdline, int n_cmd_
       CW_USEDEFAULT, CW_USEDEFAULT,
       800, 600,
       NULL, NULL, h_inst, NULL);
+
+  if (d3d_init()) return 1;
 
   ShowWindow(hwnd, n_cmd_show); 
 
