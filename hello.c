@@ -9,6 +9,11 @@
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "user32.lib")
 
+#define SCR_W 800
+#define SCR_H 600
+
+#define BUFFER_COUNT 2
+
 LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
   switch (message) {
     case WM_DESTROY:
@@ -22,9 +27,11 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
 #define COM_OK(obj, method, ...) SUCCEEDED(COM(obj, method, __VA_ARGS__))
 #define COM_CHK(obj, method, ...) if (FAILED(COM(obj, method, __VA_ARGS__))) return 1
 
-static IDXGIFactory3 * d3d_factory;
-static IDXGIAdapter1 * d3d_adapter;
-static ID3D12Device * d3d_device;
+static IDXGIFactory3      * d3d_factory;
+static IDXGIAdapter1      * d3d_adapter;
+static ID3D12Device       * d3d_device;
+static ID3D12CommandQueue * d3d_queue;
+static IDXGISwapChain3    * d3d_swc;
 
 static inline int d3d_enum_adapter_by_gpu(IDXGIFactory6 * f6, unsigned i) {
   return COM_OK(f6, EnumAdapterByGpuPreference, i, DXGI_GPU_PREFERENCE_UNSPECIFIED, &IID_IDXGIAdapter1, (void **)&d3d_adapter);
@@ -40,7 +47,6 @@ static inline int d3d_adapter_is_software(void) {
 static inline int d3d_create_device(void) {
   return FAILED(D3D12CreateDevice((IUnknown *)d3d_adapter, D3D_FEATURE_LEVEL_11_0, &IID_ID3D12Device, (void **)&d3d_device));
 }
-
 static int d3d_init_adapter(void) {
   IDXGIFactory6 * factory6;
   if (COM_OK(d3d_factory, QueryInterface, &IID_IDXGIFactory6, (void **)&factory6)) {
@@ -61,14 +67,45 @@ static int d3d_init_adapter(void) {
   return d3d_create_device();
 }
 
-int d3d_init(void) {
+static int d3d_init_queue(void) {
+  D3D12_COMMAND_QUEUE_DESC desc = {0};
+  COM_CHK(d3d_device, CreateCommandQueue, &desc, &IID_ID3D12CommandQueue, (void **)&d3d_queue);
+  return 0;
+}
+
+static int d3d_init_swapchain(HWND hwnd) {
+  IDXGISwapChain1 * swc;
+  DXGI_SWAP_CHAIN_DESC1 desc = {
+    .Width       = SCR_W,
+    .Height      = SCR_H,
+    .Format      = DXGI_FORMAT_R8G8B8A8_UNORM,
+    .BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT,
+    .BufferCount = BUFFER_COUNT,
+    .SwapEffect  = DXGI_SWAP_EFFECT_FLIP_DISCARD,
+
+    .SampleDesc = (DXGI_SAMPLE_DESC) {
+      .Count = 1,
+    },
+  };
+  COM_CHK(d3d_factory, CreateSwapChainForHwnd, (IUnknown *)d3d_queue, hwnd, &desc, NULL, NULL, &swc);
+  COM_CHK(swc, QueryInterface, &IID_IDXGISwapChain3, (void **)&d3d_swc);
+  return 0;
+}
+
+int d3d_init(HWND hwnd) {
   if (FAILED(CreateDXGIFactory2(0, &IID_IDXGIFactory3, (void **)&d3d_factory))) return 1;
   if (d3d_init_adapter()) return 1;
+  if (d3d_init_queue()) return 1;
+  if (d3d_init_swapchain(hwnd)) return 1;
+
+  COM_CHK(d3d_factory, MakeWindowAssociation, hwnd, DXGI_MWA_NO_ALT_ENTER);
 
   return 0;
 }
 
 void d3d_deinit(void) {
+  COM(d3d_swc,     Release);
+  COM(d3d_queue,   Release);
   COM(d3d_device,  Release);
   COM(d3d_adapter, Release);
   COM(d3d_factory, Release);
@@ -88,10 +125,10 @@ int WINAPI WinMain(HINSTANCE h_inst, HINSTANCE h_prev, LPSTR cmdline, int n_cmd_
   HWND hwnd = CreateWindow("m4c0-window", "Hello D3D",
       WS_OVERLAPPEDWINDOW,
       CW_USEDEFAULT, CW_USEDEFAULT,
-      800, 600,
+      SCR_W, SCR_H,
       NULL, NULL, h_inst, NULL);
 
-  if (d3d_init()) return 1;
+  if (d3d_init(hwnd)) return 1;
 
   ShowWindow(hwnd, n_cmd_show); 
 
