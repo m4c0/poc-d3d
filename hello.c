@@ -30,7 +30,7 @@ static inline int d3d_enum_adapter_by_gpu(IDXGIFactory6 * f6, unsigned i) {
 static inline int d3d_enum_adapter(unsigned i) {
   return COM_OK(d3d_factory, EnumAdapters1, i, &d3d_adapter);
 }
-static inline int d3d_adapter_is_software() {
+static inline int d3d_adapter_is_software(void) {
   DXGI_ADAPTER_DESC1 desc;
   COM(d3d_adapter, GetDesc1, &desc);
   return desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE;
@@ -39,7 +39,7 @@ static inline int d3d_create_device(void ** device) {
   return FAILED(D3D12CreateDevice((IUnknown *)d3d_adapter, D3D_FEATURE_LEVEL_11_0, &IID_ID3D12Device, NULL));
 }
 
-static int d3d_init_adapter() {
+static int d3d_init_adapter(void) {
   IDXGIFactory6 * factory6;
   if (COM_OK(d3d_factory, QueryInterface, &IID_IDXGIFactory6, (void **)&factory6)) {
     for (unsigned i = 0; d3d_enum_adapter_by_gpu(factory6, i); i++) {
@@ -64,14 +64,14 @@ static int d3d_init_adapter() {
   return 1;
 }
 
-int d3d_init() {
+int d3d_init(void) {
   if (FAILED(CreateDXGIFactory2(0, &IID_IDXGIFactory3, (void **)&d3d_factory))) return 1;
   if (d3d_init_adapter()) return 1;
 
   return 0;
 }
 
-void d3d_deinit() {
+void d3d_deinit(void) {
   COM(d3d_factory, Release);
 }
 
