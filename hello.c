@@ -1,11 +1,12 @@
 #define WIN32_LEAN_AND_MEAN
+#include <initguid.h> // Should come first
+
 #include <d3d12.h>
-#include <dxgi1_3.h>
+#include <dxgi1_6.h>
 #include <windows.h>
 
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
-#pragma comment(lib, "dxguid.lib")
 #pragma comment(lib, "user32.lib")
 
 LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
@@ -18,11 +19,48 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
 }
 
 #define COM(obj, method, ...) (obj)->lpVtbl->method(obj, __VA_ARGS__)
+#define COM_OK(obj, method, ...) SUCCEEDED(COM(obj, method, __VA_ARGS__))
 
 static IDXGIFactory3 * d3d_factory;
+static IDXGIAdapter1 * d3d_adapter;
+
+static inline int d3d_enum_adapter_by_gpu(IDXGIFactory6 * f6, unsigned i) {
+  return COM_OK(f6, EnumAdapterByGpuPreference, i, DXGI_GPU_PREFERENCE_UNSPECIFIED, &IID_IDXGIAdapter1, (void **)&d3d_adapter);
+}
+static inline int d3d_enum_adapter(unsigned i) {
+  return COM_OK(d3d_factory, EnumAdapters1, i, &d3d_adapter);
+}
+static inline int d3d_adapter_is_software() {
+  DXGI_ADAPTER_DESC1 desc;
+  COM(d3d_adapter, GetDesc1, &desc);
+  return desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE;
+}
+static inline int d3d_create_device(void ** device) {
+  return FAILED(D3D12CreateDevice((IUnknown *)d3d_adapter, D3D_FEATURE_LEVEL_11_0, &IID_ID3D12Device, NULL));
+}
+
+static int d3d_init_adapter() {
+  IDXGIFactory6 * factory6;
+  // Adapted from MS example. Their logic kinda always select an adapter, even
+  // when unsuitable.
+  if (COM_OK(d3d_factory, QueryInterface, &IID_IDXGIFactory6, (void **)&factory6)) {
+    for (unsigned i = 0; d3d_enum_adapter_by_gpu(factory6, i); i++) {
+      if (d3d_adapter_is_software()) continue;
+      if (0 == d3d_create_device(NULL)) return 0;
+    }
+  }
+  for (unsigned i = 0; d3d_enum_adapter(i); i++) {
+    if (d3d_adapter_is_software()) continue;
+    if (0 == d3d_create_device(NULL)) return 0;
+  }
+  // TODO: enable "WARP" and use software rendering, if any?
+  // TODO: warn if no suitable device found
+  return 1;
+}
 
 int d3d_init() {
   if (FAILED(CreateDXGIFactory2(0, &IID_IDXGIFactory3, (void **)&d3d_factory))) return 1;
+  if (d3d_init_adapter()) return 1;
 
   return 0;
 }
