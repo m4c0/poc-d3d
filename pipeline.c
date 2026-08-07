@@ -204,6 +204,7 @@ static int d3d_init_pso() {
     },
   };
   desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+  desc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
   COM_CHK(d3d_device, CreateGraphicsPipelineState, &desc, &IID_ID3D12PipelineState, (void **)&d3d_pso);
 
   d3d_release(vs);
