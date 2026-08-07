@@ -15,6 +15,8 @@
 
 #define BUFFER_COUNT 2
 
+#define DEBUG_INTERFACE
+
 #define COM(obj, method, ...) (obj)->lpVtbl->method(obj, __VA_ARGS__)
 #define COM_OK(obj, method, ...) SUCCEEDED(COM(obj, method, __VA_ARGS__))
 #define COM_CHK(obj, method, ...) if (FAILED(COM(obj, method, __VA_ARGS__))) return 1
@@ -34,6 +36,17 @@ static ID3D12Fence * d3d_fence;
 static unsigned      d3d_frame_idx;
 static HANDLE        d3d_fence_event;
 static uint64_t      d3d_fence_value;
+
+static int d3d_debug() {
+#ifdef DEBUG_INTERFACE
+  ID3D12Debug * debug;
+  if (SUCCEEDED(D3D12GetDebugInterface(&IID_ID3D12Debug, (void **)&debug))) {
+    COM(debug, EnableDebugLayer);
+    return DXGI_CREATE_FACTORY_DEBUG;
+  }
+#endif
+  return 0;
+}
 
 static inline int d3d_enum_adapter_by_gpu(IDXGIFactory6 * f6, unsigned i) {
   return COM_OK(f6, EnumAdapterByGpuPreference, i, DXGI_GPU_PREFERENCE_UNSPECIFIED, &IID_IDXGIAdapter1, (void **)&d3d_adapter);
@@ -124,7 +137,7 @@ static int d3d_init_cmdlist() {
 }
 
 int d3d_init(HWND hwnd) {
-  if (FAILED(CreateDXGIFactory2(0, &IID_IDXGIFactory4, (void **)&d3d_factory))) return 1;
+  if (FAILED(CreateDXGIFactory2(d3d_debug(), &IID_IDXGIFactory4, (void **)&d3d_factory))) return 1;
 
   if (d3d_init_adapter())       return 1;
   if (d3d_init_queue())         return 1;
