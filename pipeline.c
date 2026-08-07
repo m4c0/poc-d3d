@@ -29,6 +29,7 @@ static IDXGISwapChain3           * d3d_swc;
 static ID3D12DescriptorHeap      * d3d_rtv_heap;
 static ID3D12CommandAllocator    * d3d_cmd_alloc;
 static ID3D12GraphicsCommandList * d3d_cmd_list;
+static ID3D12RootSignature       * d3d_root_sign;
 
 static ID3D12Resource * d3d_rt[BUFFER_COUNT];
 
@@ -36,6 +37,10 @@ static ID3D12Fence * d3d_fence;
 static unsigned      d3d_frame_idx;
 static HANDLE        d3d_fence_event;
 static uint64_t      d3d_fence_value;
+
+static void d3d_release(void * obj) {
+  if (obj) COM((IUnknown *)obj, Release);
+}
 
 static int d3d_debug() {
 #ifdef DEBUG_INTERFACE
@@ -136,6 +141,22 @@ static int d3d_init_cmdlist() {
   return 0;
 }
 
+static int d3d_init_root_signature() {
+  ID3DBlob * blob;
+  ID3DBlob * err;
+  D3D12_ROOT_SIGNATURE_DESC desc = {0};
+  if (FAILED(D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1_0, &blob, &err))) return 1;
+  if (err) return 1;
+
+  const void * data = COM(blob, GetBufferPointer);
+  size_t        len = COM(blob, GetBufferSize);
+  COM_CHK(d3d_device, CreateRootSignature, 0, data, len, &IID_ID3D12RootSignature, (void **)&d3d_root_sign);
+
+  d3d_release(blob);
+  d3d_release(err);
+  return 0;
+}
+
 int d3d_init(HWND hwnd) {
   if (FAILED(CreateDXGIFactory2(d3d_debug(), &IID_IDXGIFactory4, (void **)&d3d_factory))) return 1;
 
@@ -151,6 +172,8 @@ int d3d_init(HWND hwnd) {
   COM_CHK(d3d_device, CreateCommandAllocator, D3D12_COMMAND_LIST_TYPE_DIRECT, &IID_ID3D12CommandAllocator, (void **)&d3d_cmd_alloc);
 
   if (d3d_init_cmdlist()) return 1;
+
+  if (d3d_init_root_signature()) return 1;
 
   COM_CHK(d3d_device, CreateFence, 0, D3D12_FENCE_FLAG_NONE, &IID_ID3D12Fence, (void **)&d3d_fence);
   d3d_frame_idx   = COM(d3d_swc, GetCurrentBackBufferIndex);
@@ -175,9 +198,6 @@ static int d3d_wait() {
   return 0;
 }
 
-static void d3d_release(void * obj) {
-  if (obj) COM((IUnknown *)obj, Release);
-}
 void d3d_deinit(void) {
   d3d_wait();
 
@@ -185,6 +205,7 @@ void d3d_deinit(void) {
 
   d3d_release(d3d_fence);
 
+  d3d_release(d3d_root_sign);
   d3d_release(d3d_cmd_list);
   d3d_release(d3d_cmd_alloc);
   d3d_release(d3d_rtv_heap);
