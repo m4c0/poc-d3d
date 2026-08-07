@@ -182,8 +182,21 @@ void d3d_deinit(void) {
   CloseHandle(d3d_fence_event);
 }
 
+int d3d_frame(void) {
+  COM_CHK(d3d_swc, Present, 1, 0);
+  d3d_wait();
+
+  return 0;
+}
+
 LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
   switch (message) {
+    case WM_PAINT:
+      if (d3d_frame()) {
+        PostQuitMessage(1);
+        return 0;
+      }
+      return 0;
     case WM_DESTROY:
       PostQuitMessage(0);
       return 0;
