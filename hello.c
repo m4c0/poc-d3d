@@ -183,6 +183,9 @@ void d3d_deinit(void) {
 }
 
 int d3d_frame(void) {
+  ID3D12CommandList * cmd_list = (ID3D12CommandList *)d3d_cmd_list;
+  COM(d3d_queue, ExecuteCommandLists, 1, &cmd_list);
+
   COM_CHK(d3d_swc, Present, 1, 0);
   d3d_wait();
 
