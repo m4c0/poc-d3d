@@ -15,15 +15,6 @@
 
 #define BUFFER_COUNT 2
 
-LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
-  switch (message) {
-    case WM_DESTROY:
-      PostQuitMessage(0);
-      return 0;
-  }
-  return DefWindowProc(hwnd, message, wp, lp);
-}
-
 #define COM(obj, method, ...) (obj)->lpVtbl->method(obj, __VA_ARGS__)
 #define COM_OK(obj, method, ...) SUCCEEDED(COM(obj, method, __VA_ARGS__))
 #define COM_CHK(obj, method, ...) if (FAILED(COM(obj, method, __VA_ARGS__))) return 1
@@ -187,6 +178,17 @@ void d3d_deinit(void) {
   d3d_release(d3d_device);
   d3d_release(d3d_adapter);
   d3d_release(d3d_factory);
+
+  CloseHandle(d3d_fence_event);
+}
+
+LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
+  switch (message) {
+    case WM_DESTROY:
+      PostQuitMessage(0);
+      return 0;
+  }
+  return DefWindowProc(hwnd, message, wp, lp);
 }
 
 int WINAPI WinMain(HINSTANCE h_inst, HINSTANCE h_prev, LPSTR cmdline, int n_cmd_show) {
