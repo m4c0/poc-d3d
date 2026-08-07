@@ -27,12 +27,13 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
 #define COM_OK(obj, method, ...) SUCCEEDED(COM(obj, method, __VA_ARGS__))
 #define COM_CHK(obj, method, ...) if (FAILED(COM(obj, method, __VA_ARGS__))) return 1
 
-static IDXGIFactory4        * d3d_factory;
-static IDXGIAdapter1        * d3d_adapter;
-static ID3D12Device         * d3d_device;
-static ID3D12CommandQueue   * d3d_queue;
-static IDXGISwapChain3      * d3d_swc;
-static ID3D12DescriptorHeap * d3d_rtv_heap;
+static IDXGIFactory4          * d3d_factory;
+static IDXGIAdapter1          * d3d_adapter;
+static ID3D12Device           * d3d_device;
+static ID3D12CommandQueue     * d3d_queue;
+static IDXGISwapChain3        * d3d_swc;
+static ID3D12DescriptorHeap   * d3d_rtv_heap;
+static ID3D12CommandAllocator * d3d_cmd_alloc;
 
 static ID3D12Resource * d3d_rt[BUFFER_COUNT];
 
@@ -131,18 +132,24 @@ int d3d_init(HWND hwnd) {
   if (d3d_init_rtv_heap()) return 1;
   if (d3d_init_rtv())      return 1;
 
+  COM_CHK(d3d_device, CreateCommandAllocator, D3D12_COMMAND_LIST_TYPE_DIRECT, &IID_ID3D12CommandAllocator, (void **)&d3d_cmd_alloc);
+
   return 0;
 }
 
+static void d3d_release(void * obj) {
+  if (obj) COM((IUnknown *)obj, Release);
+}
 void d3d_deinit(void) {
-  for (int i = 0; i < BUFFER_COUNT; i++) COM(d3d_rt[i], Release);
+  for (int i = 0; i < BUFFER_COUNT; i++) d3d_release(d3d_rt[i]);
 
-  COM(d3d_rtv_heap, Release);
-  COM(d3d_swc,      Release);
-  COM(d3d_queue,    Release);
-  COM(d3d_device,   Release);
-  COM(d3d_adapter,  Release);
-  COM(d3d_factory,  Release);
+  d3d_release(d3d_cmd_alloc);
+  d3d_release(d3d_rtv_heap);
+  d3d_release(d3d_swc);
+  d3d_release(d3d_queue);
+  d3d_release(d3d_device);
+  d3d_release(d3d_adapter);
+  d3d_release(d3d_factory);
 }
 
 int WINAPI WinMain(HINSTANCE h_inst, HINSTANCE h_prev, LPSTR cmdline, int n_cmd_show) {
