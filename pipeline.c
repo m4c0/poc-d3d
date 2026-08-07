@@ -32,6 +32,7 @@ static ID3D12DescriptorHeap      * d3d_rtv_heap;
 static ID3D12CommandAllocator    * d3d_cmd_alloc;
 static ID3D12GraphicsCommandList * d3d_cmd_list;
 static ID3D12RootSignature       * d3d_root_sign;
+static ID3D12PipelineState       * d3d_pso;
 
 static ID3D12Resource * d3d_rt[BUFFER_COUNT];
 
@@ -186,6 +187,25 @@ static int d3d_init_pso() {
       );
   if (!vs || !ps) return 1;
 
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {
+    .pRootSignature        = d3d_root_sign,
+    .VS                    = d3d_blob2shader(vs),
+    .PS                    = d3d_blob2shader(ps),
+    .PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
+    .SampleMask            = UINT_MAX,
+    .NumRenderTargets      = 1,
+
+    .RasterizerState = (D3D12_RASTERIZER_DESC) {
+      .FillMode = D3D12_FILL_MODE_SOLID,
+      .CullMode = D3D12_CULL_MODE_NONE,
+    },
+    .SampleDesc = (DXGI_SAMPLE_DESC) {
+      .Count = 1,
+    },
+  };
+  desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+  COM_CHK(d3d_device, CreateGraphicsPipelineState, &desc, &IID_ID3D12PipelineState, (void **)&d3d_pso);
+
   d3d_release(vs);
   d3d_release(ps);
   return 0;
@@ -240,6 +260,7 @@ void d3d_deinit(void) {
 
   d3d_release(d3d_fence);
 
+  d3d_release(d3d_pso);
   d3d_release(d3d_root_sign);
   d3d_release(d3d_cmd_list);
   d3d_release(d3d_cmd_alloc);
