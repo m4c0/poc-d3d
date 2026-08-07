@@ -155,10 +155,26 @@ int d3d_init(HWND hwnd) {
   return 0;
 }
 
+static int d3d_wait() {
+  uint64_t v = d3d_fence_value;
+  COM_CHK(d3d_queue, Signal, d3d_fence, v);
+  d3d_fence_value++;
+
+  if (COM(d3d_fence, GetCompletedValue) < v) {
+    COM(d3d_fence, SetEventOnCompletion, v, d3d_fence_event);
+    WaitForSingleObject(d3d_fence_event, INFINITE);
+  }
+
+  d3d_frame_idx = COM(d3d_swc, GetCurrentBackBufferIndex);
+  return 0;
+}
+
 static void d3d_release(void * obj) {
   if (obj) COM((IUnknown *)obj, Release);
 }
 void d3d_deinit(void) {
+  d3d_wait();
+
   for (int i = 0; i < BUFFER_COUNT; i++) d3d_release(d3d_rt[i]);
 
   d3d_release(d3d_fence);
