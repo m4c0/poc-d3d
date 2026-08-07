@@ -27,13 +27,14 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
 #define COM_OK(obj, method, ...) SUCCEEDED(COM(obj, method, __VA_ARGS__))
 #define COM_CHK(obj, method, ...) if (FAILED(COM(obj, method, __VA_ARGS__))) return 1
 
-static IDXGIFactory4          * d3d_factory;
-static IDXGIAdapter1          * d3d_adapter;
-static ID3D12Device           * d3d_device;
-static ID3D12CommandQueue     * d3d_queue;
-static IDXGISwapChain3        * d3d_swc;
-static ID3D12DescriptorHeap   * d3d_rtv_heap;
-static ID3D12CommandAllocator * d3d_cmd_alloc;
+static IDXGIFactory4             * d3d_factory;
+static IDXGIAdapter1             * d3d_adapter;
+static ID3D12Device              * d3d_device;
+static ID3D12CommandQueue        * d3d_queue;
+static IDXGISwapChain3           * d3d_swc;
+static ID3D12DescriptorHeap      * d3d_rtv_heap;
+static ID3D12CommandAllocator    * d3d_cmd_alloc;
+static ID3D12GraphicsCommandList * d3d_cmd_list;
 
 static ID3D12Resource * d3d_rt[BUFFER_COUNT];
 
@@ -119,6 +120,12 @@ static int d3d_init_rtv(void) {
   return 0;
 }
 
+static int d3d_init_cmdlist() {
+  COM_CHK(d3d_device, CreateCommandList, 0, D3D12_COMMAND_LIST_TYPE_DIRECT, d3d_cmd_alloc, NULL, &IID_ID3D12GraphicsCommandList, (void **)&d3d_cmd_list);
+  COM_CHK(d3d_cmd_list, Close);
+  return 0;
+}
+
 int d3d_init(HWND hwnd) {
   if (FAILED(CreateDXGIFactory2(0, &IID_IDXGIFactory4, (void **)&d3d_factory))) return 1;
 
@@ -134,6 +141,8 @@ int d3d_init(HWND hwnd) {
 
   COM_CHK(d3d_device, CreateCommandAllocator, D3D12_COMMAND_LIST_TYPE_DIRECT, &IID_ID3D12CommandAllocator, (void **)&d3d_cmd_alloc);
 
+  if (d3d_init_cmdlist()) return 1;
+
   return 0;
 }
 
@@ -143,6 +152,7 @@ static void d3d_release(void * obj) {
 void d3d_deinit(void) {
   for (int i = 0; i < BUFFER_COUNT; i++) d3d_release(d3d_rt[i]);
 
+  d3d_release(d3d_cmd_list);
   d3d_release(d3d_cmd_alloc);
   d3d_release(d3d_rtv_heap);
   d3d_release(d3d_swc);
