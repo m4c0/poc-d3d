@@ -102,15 +102,17 @@ static int d3d_init_rtv_heap(void) {
 }
 
 typedef void (STDMETHODCALLTYPE * d3d_get_cpu_desc_t)(ID3D12DescriptorHeap *, D3D12_CPU_DESCRIPTOR_HANDLE *);
-static int d3d_init_rtv(void) {
+static D3D12_CPU_DESCRIPTOR_HANDLE d3d_get_rtv_cpu_desc(int i) {
   D3D12_CPU_DESCRIPTOR_HANDLE h;
   ((d3d_get_cpu_desc_t)d3d_rtv_heap->lpVtbl->GetCPUDescriptorHandleForHeapStart)(d3d_rtv_heap, &h);
+  h.ptr += i * COM(d3d_device, GetDescriptorHandleIncrementSize, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+  return h;
+}
 
-  unsigned incr = COM(d3d_device, GetDescriptorHandleIncrementSize, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+static int d3d_init_rtv(void) {
   for (int i = 0; i < BUFFER_COUNT; i++) {
     COM_CHK(d3d_swc, GetBuffer, i, &IID_ID3D12Resource, (void **)&d3d_rt[i]);
-    COM(d3d_device, CreateRenderTargetView, d3d_rt[i], NULL, h);
-    h.ptr += incr;
+    COM(d3d_device, CreateRenderTargetView, d3d_rt[i], NULL, d3d_get_rtv_cpu_desc(i));
   }
   return 0;
 }
@@ -182,9 +184,27 @@ void d3d_deinit(void) {
   CloseHandle(d3d_fence_event);
 }
 
+static void d3d_cmd_transition_barrier(D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after) {
+  D3D12_RESOURCE_BARRIER b = {
+    .Transition    = {
+      .pResource   = d3d_rt[d3d_frame_idx],
+      .StateBefore = before,
+      .StateAfter  = after,
+    }
+  };
+  COM(d3d_cmd_list, ResourceBarrier, 1, &b);
+}
 int d3d_frame(void) {
   COM_CHK(d3d_cmd_alloc, Reset);
   COM_CHK(d3d_cmd_list, Reset, d3d_cmd_alloc, NULL);
+
+  d3d_cmd_transition_barrier(D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+  D3D12_CPU_DESCRIPTOR_HANDLE rtv = d3d_get_rtv_cpu_desc(d3d_frame_idx);
+  float colour[] = { 0.1, 0.2, 0.3, 1.0 };
+  COM(d3d_cmd_list, ClearRenderTargetView, rtv, colour, 0, NULL);
+
+  d3d_cmd_transition_barrier(D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 
   COM_CHK(d3d_cmd_list, Close);
 
