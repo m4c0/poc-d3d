@@ -165,6 +165,32 @@ static int d3d_init_root_signature() {
   return 0;
 }
 
+static ID3DBlob * d3d_compile(const char * tgt, const char * shd) {
+  ID3DBlob * blob;
+  ID3DBlob * err;
+  if (FAILED(D3DCompile(shd, strlen(shd), NULL, NULL, NULL, "main", tgt, 0, 0, &blob, &err))) return (d3d_report_err(err), NULL);
+  if (err) return (d3d_report_err(err), NULL);
+  return blob;
+}
+static D3D12_SHADER_BYTECODE d3d_blob2shader(ID3DBlob * blob) {
+  return (D3D12_SHADER_BYTECODE){ COM(blob, GetBufferPointer), COM(blob, GetBufferSize) };
+}
+static int d3d_init_pso() {
+  ID3DBlob * vs = d3d_compile("vs_5_0",
+      "float4 main(uint vid : SV_VertexID) : SV_POSITION {"
+      "  return float4(vid & 1, (vid >> 1) & 1, 0, 1);"
+      "}"
+      );
+  ID3DBlob * ps = d3d_compile("ps_5_0",
+      "float4 main() : SV_TARGET { return float4(0.2, 0.3, 0.4, 1.0); }"
+      );
+  if (!vs || !ps) return 1;
+
+  d3d_release(vs);
+  d3d_release(ps);
+  return 0;
+}
+
 int d3d_init(HWND hwnd) {
   if (FAILED(CreateDXGIFactory2(d3d_debug(), &IID_IDXGIFactory4, (void **)&d3d_factory))) return 1;
 
@@ -182,6 +208,7 @@ int d3d_init(HWND hwnd) {
   if (d3d_init_cmdlist()) return 1;
 
   if (d3d_init_root_signature()) return 1;
+  if (d3d_init_pso()) return 1;
 
   COM_CHK(d3d_device, CreateFence, 0, D3D12_FENCE_FLAG_NONE, &IID_ID3D12Fence, (void **)&d3d_fence);
   d3d_frame_idx   = COM(d3d_swc, GetCurrentBackBufferIndex);
