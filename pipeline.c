@@ -139,7 +139,7 @@ static int d3d_init_rtv(void) {
 }
 
 static int d3d_init_cmdlist() {
-  COM_CHK(d3d_device, CreateCommandList, 0, D3D12_COMMAND_LIST_TYPE_DIRECT, d3d_cmd_alloc, NULL, &IID_ID3D12GraphicsCommandList, (void **)&d3d_cmd_list);
+  COM_CHK(d3d_device, CreateCommandList, 0, D3D12_COMMAND_LIST_TYPE_DIRECT, d3d_cmd_alloc, d3d_pso, &IID_ID3D12GraphicsCommandList, (void **)&d3d_cmd_list);
   COM_CHK(d3d_cmd_list, Close);
   return 0;
 }
@@ -225,10 +225,9 @@ int d3d_init(HWND hwnd) {
 
   COM_CHK(d3d_device, CreateCommandAllocator, D3D12_COMMAND_LIST_TYPE_DIRECT, &IID_ID3D12CommandAllocator, (void **)&d3d_cmd_alloc);
 
-  if (d3d_init_cmdlist()) return 1;
-
   if (d3d_init_root_signature()) return 1;
-  if (d3d_init_pso()) return 1;
+  if (d3d_init_pso())            return 1;
+  if (d3d_init_cmdlist())        return 1;
 
   COM_CHK(d3d_device, CreateFence, 0, D3D12_FENCE_FLAG_NONE, &IID_ID3D12Fence, (void **)&d3d_fence);
   d3d_frame_idx   = COM(d3d_swc, GetCurrentBackBufferIndex);
@@ -260,9 +259,9 @@ void d3d_deinit(void) {
 
   d3d_release(d3d_fence);
 
+  d3d_release(d3d_cmd_list);
   d3d_release(d3d_pso);
   d3d_release(d3d_root_sign);
-  d3d_release(d3d_cmd_list);
   d3d_release(d3d_cmd_alloc);
   d3d_release(d3d_rtv_heap);
   d3d_release(d3d_swc);
@@ -286,13 +285,24 @@ static void d3d_cmd_transition_barrier(D3D12_RESOURCE_STATES before, D3D12_RESOU
 }
 int d3d_frame(void) {
   COM_CHK(d3d_cmd_alloc, Reset);
-  COM_CHK(d3d_cmd_list, Reset, d3d_cmd_alloc, NULL);
+  COM_CHK(d3d_cmd_list, Reset, d3d_cmd_alloc, d3d_pso);
+
+  COM(d3d_cmd_list, SetGraphicsRootSignature, d3d_root_sign);
+
+  D3D12_VIEWPORT vp = { 0, 0, SCR_W, SCR_H };
+  COM(d3d_cmd_list, RSSetViewports, 1, &vp);
+  D3D12_RECT     sc = { 0, 0, SCR_W, SCR_H };
+  COM(d3d_cmd_list, RSSetScissorRects, 1, &sc);
 
   d3d_cmd_transition_barrier(D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
   D3D12_CPU_DESCRIPTOR_HANDLE rtv = d3d_get_rtv_cpu_desc(d3d_frame_idx);
+  COM(d3d_cmd_list, OMSetRenderTargets, 1, &rtv, FALSE, NULL);
+
   float colour[] = { 0.1, 0.2, 0.3, 1.0 };
   COM(d3d_cmd_list, ClearRenderTargetView, rtv, colour, 0, NULL);
+  COM(d3d_cmd_list, IASetPrimitiveTopology, D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+  COM(d3d_cmd_list, DrawInstanced, 3, 1, 0, 0);
 
   d3d_cmd_transition_barrier(D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 
