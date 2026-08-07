@@ -3,6 +3,7 @@
 
 #include <d3d12.h>
 #include <dxgi1_6.h>
+#include <stdint.h>
 #include <windows.h>
 
 #pragma comment(lib, "d3d12.lib")
@@ -38,7 +39,10 @@ static ID3D12GraphicsCommandList * d3d_cmd_list;
 
 static ID3D12Resource * d3d_rt[BUFFER_COUNT];
 
-static unsigned d3d_frame_idx;
+static ID3D12Fence * d3d_fence;
+static unsigned      d3d_frame_idx;
+static HANDLE        d3d_fence_event;
+static uint64_t      d3d_fence_value;
 
 static inline int d3d_enum_adapter_by_gpu(IDXGIFactory6 * f6, unsigned i) {
   return COM_OK(f6, EnumAdapterByGpuPreference, i, DXGI_GPU_PREFERENCE_UNSPECIFIED, &IID_IDXGIAdapter1, (void **)&d3d_adapter);
@@ -134,7 +138,6 @@ int d3d_init(HWND hwnd) {
   if (d3d_init_swapchain(hwnd)) return 1;
 
   COM_CHK(d3d_factory, MakeWindowAssociation, hwnd, DXGI_MWA_NO_ALT_ENTER);
-  d3d_frame_idx = COM(d3d_swc, GetCurrentBackBufferIndex);
 
   if (d3d_init_rtv_heap()) return 1;
   if (d3d_init_rtv())      return 1;
@@ -142,6 +145,12 @@ int d3d_init(HWND hwnd) {
   COM_CHK(d3d_device, CreateCommandAllocator, D3D12_COMMAND_LIST_TYPE_DIRECT, &IID_ID3D12CommandAllocator, (void **)&d3d_cmd_alloc);
 
   if (d3d_init_cmdlist()) return 1;
+
+  COM_CHK(d3d_device, CreateFence, 0, D3D12_FENCE_FLAG_NONE, &IID_ID3D12Fence, (void **)&d3d_fence);
+  d3d_frame_idx   = COM(d3d_swc, GetCurrentBackBufferIndex);
+  d3d_fence_value = 1;
+  d3d_fence_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+  if (!d3d_fence_event) return 1;
 
   return 0;
 }
@@ -151,6 +160,8 @@ static void d3d_release(void * obj) {
 }
 void d3d_deinit(void) {
   for (int i = 0; i < BUFFER_COUNT; i++) d3d_release(d3d_rt[i]);
+
+  d3d_release(d3d_fence);
 
   d3d_release(d3d_cmd_list);
   d3d_release(d3d_cmd_alloc);
