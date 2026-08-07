@@ -1,11 +1,13 @@
 #define WIN32_LEAN_AND_MEAN
 #include <initguid.h> // Should come first
 
+#include <d3dcompiler.h>
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <stdint.h>
 #include <windows.h>
 
+#pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "user32.lib")
@@ -141,12 +143,18 @@ static int d3d_init_cmdlist() {
   return 0;
 }
 
+static void d3d_report_err(ID3DBlob * err) {
+  if (!err) return;
+  const char * txt = COM(err, GetBufferPointer);
+  MessageBox(NULL, txt, "Direct3D error", MB_ICONERROR);
+}
+
 static int d3d_init_root_signature() {
   ID3DBlob * blob;
   ID3DBlob * err;
   D3D12_ROOT_SIGNATURE_DESC desc = {0};
-  if (FAILED(D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1_0, &blob, &err))) return 1;
-  if (err) return 1;
+  if (FAILED(D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1_0, &blob, &err))) return (d3d_report_err(err), 1);
+  if (err) return (d3d_report_err(err), 1);
 
   const void * data = COM(blob, GetBufferPointer);
   size_t        len = COM(blob, GetBufferSize);
