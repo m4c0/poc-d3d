@@ -292,6 +292,11 @@ int d3d_init(HWND hwnd) {
   d3d_fence_event = CreateEvent(NULL, FALSE, FALSE, NULL);
   if (!d3d_fence_event) return 1;
 
+  float * upc;
+  COM_CHK(d3d_cbuf, Map, 0, NULL, (void **)&upc);
+  *upc = 0.67;
+  COM(d3d_cbuf, Unmap, 0, NULL);
+
   return 0;
 }
 
