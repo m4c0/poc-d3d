@@ -178,8 +178,9 @@ static D3D12_SHADER_BYTECODE d3d_blob2shader(ID3DBlob * blob) {
 }
 static int d3d_init_pso() {
   ID3DBlob * vs = d3d_compile("vs_5_0",
+      "cbuffer upc { float scale; };"
       "float4 main(uint vid : SV_VertexID) : SV_POSITION {"
-      "  return float4(vid & 1, (vid >> 1) & 1, 0, 1);"
+      "  return float4(scale * (vid & 1), scale * ((vid >> 1) & 1), 0, 1);"
       "}"
       );
   ID3DBlob * ps = d3d_compile("ps_5_0",
