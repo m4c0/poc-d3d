@@ -34,6 +34,7 @@ static ID3D12GraphicsCommandList * d3d_cmd_list;
 static ID3D12RootSignature       * d3d_root_sign;
 static ID3D12PipelineState       * d3d_pso;
 static ID3D12Resource            * d3d_cbuf;
+static ID3D12DescriptorHeap      * d3d_cbuf_heap;
 
 static ID3D12Resource * d3d_rt[BUFFER_COUNT];
 
@@ -169,7 +170,14 @@ static int d3d_init_root_signature() {
   D3D12_ROOT_SIGNATURE_DESC desc = {
     .NumParameters      = 1,
     .pParameters        = (D3D12_ROOT_PARAMETER[]) {{
-      .ParameterType    = D3D12_ROOT_PARAMETER_TYPE_CBV,
+      .ParameterType    = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
+      .DescriptorTable  = (D3D12_ROOT_DESCRIPTOR_TABLE) {
+        .NumDescriptorRanges = 1,
+        .pDescriptorRanges   = (D3D12_DESCRIPTOR_RANGE[]) {{
+          .RangeType         = D3D12_DESCRIPTOR_RANGE_TYPE_CBV,
+          .NumDescriptors    = 1,
+        }},
+      },
     }},
   };
   if (FAILED(D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1_0, &blob, &err))) return (d3d_report_err(err), 1);
@@ -231,6 +239,15 @@ static int d3d_init_pso() {
   return 0;
 }
 
+static int d3d_init_cbuffer_heap(void) {
+  D3D12_DESCRIPTOR_HEAP_DESC desc = {
+    .NumDescriptors = 1,
+    .Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
+  };
+  COM_CHK(d3d_device, CreateDescriptorHeap, &desc, &IID_ID3D12DescriptorHeap, (void **)&d3d_cbuf_heap);
+  return 0;
+}
+
 static int d3d_init_cbuffer(void) {
   int size = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
 
@@ -252,6 +269,12 @@ static int d3d_init_cbuffer(void) {
       &heap, D3D12_HEAP_FLAG_NONE, &res, D3D12_RESOURCE_STATE_GENERIC_READ, NULL, 
       &IID_ID3D12Resource, (void **)&d3d_cbuf);
 
+  D3D12_CONSTANT_BUFFER_VIEW_DESC desc = {
+    .BufferLocation = COM(d3d_cbuf, GetGPUVirtualAddress),
+    .SizeInBytes    = size,
+  };
+  COM(d3d_device, CreateConstantBufferView, &desc, d3d_get_cpu_desc(d3d_cbuf_heap));
+
   return 0;
 }
 
@@ -272,6 +295,7 @@ int d3d_init(HWND hwnd) {
   if (d3d_init_root_signature()) return 1;
   if (d3d_init_pso())            return 1;
   if (d3d_init_cmdlist())        return 1;
+  if (d3d_init_cbuffer_heap())   return 1;
   if (d3d_init_cbuffer())        return 1;
 
   COM_CHK(d3d_device, CreateFence, 0, D3D12_FENCE_FLAG_NONE, &IID_ID3D12Fence, (void **)&d3d_fence);
@@ -309,6 +333,7 @@ void d3d_deinit(void) {
 
   d3d_release(d3d_fence);
 
+  d3d_release(d3d_cbuf_heap);
   d3d_release(d3d_cbuf);
   d3d_release(d3d_cmd_list);
   d3d_release(d3d_pso);
@@ -345,7 +370,8 @@ int d3d_frame(void) {
   D3D12_RECT     sc = { 0, 0, SCR_W, SCR_H };
   COM(d3d_cmd_list, RSSetScissorRects, 1, &sc);
 
-  COM(d3d_cmd_list, SetGraphicsRootConstantBufferView, 0, COM(d3d_cbuf, GetGPUVirtualAddress));
+  COM(d3d_cmd_list, SetDescriptorHeaps, 1, &d3d_cbuf_heap);
+  COM(d3d_cmd_list, SetGraphicsRootDescriptorTable, 0, d3d_get_gpu_desc(d3d_cbuf_heap));
 
   d3d_cmd_transition_barrier(D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
