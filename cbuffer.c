@@ -47,6 +47,20 @@ static void d3d_release(void * obj) {
   if (obj) COM((IUnknown *)obj, Release);
 }
 
+typedef void (STDMETHODCALLTYPE * d3d_get_cpu_desc_t)(ID3D12DescriptorHeap *, D3D12_CPU_DESCRIPTOR_HANDLE *);
+static D3D12_CPU_DESCRIPTOR_HANDLE d3d_get_cpu_desc(ID3D12DescriptorHeap * heap) {
+  D3D12_CPU_DESCRIPTOR_HANDLE h;
+  ((d3d_get_cpu_desc_t)heap->lpVtbl->GetCPUDescriptorHandleForHeapStart)(heap, &h);
+  return h;
+}
+
+typedef void (STDMETHODCALLTYPE * d3d_get_gpu_desc_t)(ID3D12DescriptorHeap *, D3D12_GPU_DESCRIPTOR_HANDLE *);
+static D3D12_GPU_DESCRIPTOR_HANDLE d3d_get_gpu_desc(ID3D12DescriptorHeap * heap) {
+  D3D12_GPU_DESCRIPTOR_HANDLE h;
+  ((d3d_get_gpu_desc_t)heap->lpVtbl->GetGPUDescriptorHandleForHeapStart)(heap, &h);
+  return h;
+}
+
 static int d3d_debug() {
 #ifdef DEBUG_INTERFACE
   ID3D12Debug * debug;
@@ -124,12 +138,6 @@ static int d3d_init_rtv_heap(void) {
   return 0;
 }
 
-typedef void (STDMETHODCALLTYPE * d3d_get_cpu_desc_t)(ID3D12DescriptorHeap *, D3D12_CPU_DESCRIPTOR_HANDLE *);
-static D3D12_CPU_DESCRIPTOR_HANDLE d3d_get_cpu_desc(ID3D12DescriptorHeap * heap) {
-  D3D12_CPU_DESCRIPTOR_HANDLE h;
-  ((d3d_get_cpu_desc_t)heap->lpVtbl->GetCPUDescriptorHandleForHeapStart)(heap, &h);
-  return h;
-}
 static D3D12_CPU_DESCRIPTOR_HANDLE d3d_get_rtv_cpu_desc(int i) {
   D3D12_CPU_DESCRIPTOR_HANDLE h = d3d_get_cpu_desc(d3d_rtv_heap);
   h.ptr += i * COM(d3d_device, GetDescriptorHandleIncrementSize, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
@@ -357,6 +365,9 @@ int d3d_frame(void) {
   COM(d3d_cmd_list, RSSetViewports, 1, &vp);
   D3D12_RECT     sc = { 0, 0, SCR_W, SCR_H };
   COM(d3d_cmd_list, RSSetScissorRects, 1, &sc);
+
+  COM(d3d_cmd_list, SetDescriptorHeaps, 1, &d3d_cbuf_heap);
+  COM(d3d_cmd_list, SetGraphicsRootDescriptorTable, 0, d3d_get_gpu_desc(d3d_cbuf_heap));
 
   d3d_cmd_transition_barrier(D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
