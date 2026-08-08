@@ -237,7 +237,7 @@ static int d3d_init_pso() {
 
 static int d3d_init_cbuffer_heap(void) {
   D3D12_DESCRIPTOR_HEAP_DESC desc = {
-    .NumDescriptors = BUFFER_COUNT,
+    .NumDescriptors = 1,
     .Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
   };
   COM_CHK(d3d_device, CreateDescriptorHeap, &desc, &IID_ID3D12DescriptorHeap, (void **)&d3d_cbuf_heap);
