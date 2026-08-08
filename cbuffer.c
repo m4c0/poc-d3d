@@ -170,9 +170,13 @@ static int d3d_init_root_signature() {
   D3D12_ROOT_SIGNATURE_DESC desc = {
     .NumParameters      = 1,
     .pParameters        = (D3D12_ROOT_PARAMETER[]) {{
-      .ParameterType    = D3D12_ROOT_PARAMETER_TYPE_CBV,
-      .Constants        = (D3D12_ROOT_CONSTANTS) {
-        .Num32BitValues = 1,
+      .ParameterType    = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
+      .DescriptorTable  = (D3D12_ROOT_DESCRIPTOR_TABLE) {
+        .NumDescriptorRanges = 1,
+        .pDescriptorRanges   = (D3D12_DESCRIPTOR_RANGE[]) {{
+          .RangeType         = D3D12_DESCRIPTOR_RANGE_TYPE_CBV,
+          .NumDescriptors    = 1,
+        }},
       },
     }},
   };
