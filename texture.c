@@ -36,6 +36,7 @@ static ID3D12RootSignature       * d3d_root_sign;
 static ID3D12PipelineState       * d3d_pso;
 
 static ID3D12Resource            * d3d_txt;
+static ID3D12Resource            * d3d_txt_upload;
 static ID3D12DescriptorHeap      * d3d_txt_heap;
 
 static ID3D12DescriptorHeap      * d3d_smp_heap;
@@ -284,8 +285,29 @@ static int d3d_init_txt(void) {
     },
   };
   D3D_CHK(d3d_device, CreateCommittedResource,
-      &heap, D3D12_HEAP_FLAG_NONE, &res, D3D12_RESOURCE_STATE_GENERIC_READ, NULL, 
+      &heap, D3D12_HEAP_FLAG_NONE, &res, D3D12_RESOURCE_STATE_COPY_DEST, NULL, 
       &IID_ID3D12Resource, (void **)&d3d_txt);
+
+  uint64_t sz;
+  COM(d3d_device, GetCopyableFootprints, &res, 0, 1, 0, NULL, NULL, NULL, &sz);
+
+  heap = (D3D12_HEAP_PROPERTIES) {
+    .Type = D3D12_HEAP_TYPE_UPLOAD,
+  };
+  res = (D3D12_RESOURCE_DESC) {
+    .Dimension        = D3D12_RESOURCE_DIMENSION_BUFFER,
+    .Layout           = D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
+    .Width            = sz,
+    .Height           = 1,
+    .DepthOrArraySize = 1,
+    .MipLevels        = 1,
+    .SampleDesc       = (DXGI_SAMPLE_DESC) {
+      .Count          = 1,
+    },
+  };
+  D3D_CHK(d3d_device, CreateCommittedResource,
+      &heap, D3D12_HEAP_FLAG_NONE, &res, D3D12_RESOURCE_STATE_GENERIC_READ, NULL, 
+      &IID_ID3D12Resource, (void **)&d3d_txt_upload);
 
   return 0;
 }
