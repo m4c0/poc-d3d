@@ -1,13 +1,18 @@
 #include <process.h>
 
+// #define OPT "-O3"
+#define OPT "-gdwarf"
+
+#define CC(X) if (0 != _spawnlp(_P_WAIT, "clang.exe", "clang.exe", OPT, "-o", X".exe", X".c", NULL)) return 1;
+
 int main() {
-  if (0 != _spawnlp(_P_WAIT, "clang.exe", "clang.exe", "-o", "hello.exe", "hello.c", NULL)) return 1;
-  if (0 != _spawnlp(_P_WAIT, "clang.exe", "clang.exe", "-o", "pipeline.exe", "pipeline.c", NULL)) return 1;
-  if (0 != _spawnlp(_P_WAIT, "clang.exe", "clang.exe", "-o", "cbuffer.exe", "cbuffer.c", NULL)) return 1;
-  if (0 != _spawnlp(_P_WAIT, "clang.exe", "clang.exe", "-o", "cbuffer-desc.exe", "cbuffer-desc.c", NULL)) return 1;
-  if (0 != _spawnlp(_P_WAIT, "clang.exe", "clang.exe", "-o", "cbuffer-root.exe", "cbuffer-root.c", NULL)) return 1;
-  if (0 != _spawnlp(_P_WAIT, "clang.exe", "clang.exe", "-o", "buffer.exe", "buffer.c", NULL)) return 1;
-  if (0 != _spawnlp(_P_WAIT, "clang.exe", "clang.exe", "-o", "texture.exe", "texture.c", NULL)) return 1;
+  CC("hello");
+  CC("pipeline");
+  CC("cbuffer");
+  CC("cbuffer-desc");
+  CC("cbuffer-root");
+  CC("buffer");
+  CC("texture");
 
   return 0;
 }
