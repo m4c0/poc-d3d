@@ -205,7 +205,24 @@ static int d3d_init_pso() {
   };
   desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
   desc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-  COM_CHK(d3d_device, CreateGraphicsPipelineState, &desc, &IID_ID3D12PipelineState, (void **)&d3d_pso);
+  if (FAILED(COM(d3d_device, CreateGraphicsPipelineState, &desc, &IID_ID3D12PipelineState, (void **)&d3d_pso))) {
+#ifdef DEBUG_INTERFACE
+    ID3D12InfoQueue * infoq;
+    COM_CHK(d3d_device, QueryInterface, &IID_ID3D12InfoQueue, (void **)&infoq);
+    int n = COM(infoq, GetNumStoredMessages);
+    for (int i = 0; i < n; i++) {
+      size_t sz = 0;
+      COM(infoq, GetMessage, i, NULL, &sz);
+
+      D3D12_MESSAGE * msg = malloc(sz); // Trusting MS sends the right size
+      COM_CHK(infoq, GetMessage, i, msg, &sz);
+      OutputDebugString(msg->pDescription);
+      OutputDebugString("\n");
+      free(msg);
+    }
+#endif
+    return 1;
+  }
 
   d3d_release(vs);
   d3d_release(ps);
