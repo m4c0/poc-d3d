@@ -22,6 +22,7 @@
 #define COM(obj, method, ...) (obj)->lpVtbl->method(obj, __VA_ARGS__)
 #define COM_OK(obj, method, ...) SUCCEEDED(COM(obj, method, __VA_ARGS__))
 #define COM_CHK(obj, method, ...) if (FAILED(COM(obj, method, __VA_ARGS__))) return 1
+#define D3D_CHK(obj, method, ...) if (FAILED(COM(obj, method, __VA_ARGS__))) return d3d_output_errors()
 
 static IDXGIFactory4             * d3d_factory;
 static IDXGIAdapter1             * d3d_adapter;
@@ -54,6 +55,25 @@ static int d3d_debug() {
   }
 #endif
   return 0;
+}
+
+static int d3d_output_errors() {
+#ifdef DEBUG_INTERFACE
+  ID3D12InfoQueue * infoq;
+  COM_CHK(d3d_device, QueryInterface, &IID_ID3D12InfoQueue, (void **)&infoq);
+  int n = COM(infoq, GetNumStoredMessages);
+  for (int i = 0; i < n; i++) {
+    size_t sz = 0;
+    COM(infoq, GetMessage, i, NULL, &sz);
+
+    D3D12_MESSAGE * msg = malloc(sz); // Trusting MS sends the right size
+    COM_CHK(infoq, GetMessage, i, msg, &sz);
+    OutputDebugString(msg->pDescription);
+    OutputDebugString("\n");
+    free(msg);
+  }
+#endif
+  return 1;
 }
 
 static inline int d3d_enum_adapter_by_gpu(IDXGIFactory6 * f6, unsigned i) {
@@ -228,24 +248,7 @@ static int d3d_init_pso() {
   };
   desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
   desc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-  if (FAILED(COM(d3d_device, CreateGraphicsPipelineState, &desc, &IID_ID3D12PipelineState, (void **)&d3d_pso))) {
-#ifdef DEBUG_INTERFACE
-    ID3D12InfoQueue * infoq;
-    COM_CHK(d3d_device, QueryInterface, &IID_ID3D12InfoQueue, (void **)&infoq);
-    int n = COM(infoq, GetNumStoredMessages);
-    for (int i = 0; i < n; i++) {
-      size_t sz = 0;
-      COM(infoq, GetMessage, i, NULL, &sz);
-
-      D3D12_MESSAGE * msg = malloc(sz); // Trusting MS sends the right size
-      COM_CHK(infoq, GetMessage, i, msg, &sz);
-      OutputDebugString(msg->pDescription);
-      OutputDebugString("\n");
-      free(msg);
-    }
-#endif
-    return 1;
-  }
+  D3D_CHK(d3d_device, CreateGraphicsPipelineState, &desc, &IID_ID3D12PipelineState, (void **)&d3d_pso);
 
   d3d_release(vs);
   d3d_release(ps);
