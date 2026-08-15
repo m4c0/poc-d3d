@@ -309,6 +309,11 @@ static int d3d_init_txt(void) {
       &heap, D3D12_HEAP_FLAG_NONE, &res, D3D12_RESOURCE_STATE_GENERIC_READ, NULL, 
       &IID_ID3D12Resource, (void **)&d3d_txt_upload);
 
+  uint32_t * data;
+  COM_CHK(d3d_txt_upload, Map, 0, NULL, (void **)&data);
+  for (int i = 0; i < 16 * 16; i++) data[i] = 0xFF3333FF;
+  COM(d3d_txt_upload, Unmap, 0, NULL);
+
   return 0;
 }
 
