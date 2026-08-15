@@ -35,6 +35,11 @@ static ID3D12GraphicsCommandList * d3d_cmd_list;
 static ID3D12RootSignature       * d3d_root_sign;
 static ID3D12PipelineState       * d3d_pso;
 
+static ID3D12Resource            * d3d_txt;
+static ID3D12DescriptorHeap      * d3d_txt_heap;
+
+static ID3D12DescriptorHeap      * d3d_smp_heap;
+
 static ID3D12Resource * d3d_rt[BUFFER_COUNT];
 
 static ID3D12Fence * d3d_fence;
@@ -255,6 +260,45 @@ static int d3d_init_pso() {
   return 0;
 }
 
+static int d3d_init_txt_heap(void) {
+  D3D12_DESCRIPTOR_HEAP_DESC desc = {
+    .NumDescriptors = 1,
+    .Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
+  };
+  COM_CHK(d3d_device, CreateDescriptorHeap, &desc, &IID_ID3D12DescriptorHeap, (void **)&d3d_txt_heap);
+  return 0;
+}
+static int d3d_init_txt(void) {
+  D3D12_HEAP_PROPERTIES heap = {
+    .Type = D3D12_HEAP_TYPE_DEFAULT,
+  };
+  D3D12_RESOURCE_DESC res = {
+    .Dimension        = D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+    .Format           = DXGI_FORMAT_R8G8B8A8_UNORM,
+    .Width            = 16,
+    .Height           = 16,
+    .DepthOrArraySize = 1,
+    .MipLevels        = 1,
+    .SampleDesc       = (DXGI_SAMPLE_DESC) {
+      .Count          = 1,
+    },
+  };
+  D3D_CHK(d3d_device, CreateCommittedResource,
+      &heap, D3D12_HEAP_FLAG_NONE, &res, D3D12_RESOURCE_STATE_GENERIC_READ, NULL, 
+      &IID_ID3D12Resource, (void **)&d3d_txt);
+
+  return 0;
+}
+
+static int d3d_init_smp_heap(void) {
+  D3D12_DESCRIPTOR_HEAP_DESC desc = {
+    .Type           = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,
+    .NumDescriptors = 1,
+    .Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
+  };
+  COM_CHK(d3d_device, CreateDescriptorHeap, &desc, &IID_ID3D12DescriptorHeap, (void **)&d3d_smp_heap);
+  return 0;
+}
 int d3d_init(HWND hwnd) {
   if (FAILED(CreateDXGIFactory2(d3d_debug(), &IID_IDXGIFactory4, (void **)&d3d_factory))) return 1;
 
@@ -272,6 +316,11 @@ int d3d_init(HWND hwnd) {
   if (d3d_init_root_signature()) return 1;
   if (d3d_init_pso())            return 1;
   if (d3d_init_cmdlist())        return 1;
+
+  if (d3d_init_txt_heap()) return 1;
+  if (d3d_init_txt())      return 1;
+
+  if (d3d_init_smp_heap()) return 1;
 
   COM_CHK(d3d_device, CreateFence, 0, D3D12_FENCE_FLAG_NONE, &IID_ID3D12Fence, (void **)&d3d_fence);
   d3d_frame_idx   = COM(d3d_swc, GetCurrentBackBufferIndex);
