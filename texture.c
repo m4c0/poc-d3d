@@ -153,7 +153,28 @@ static void d3d_report_err(ID3DBlob * err) {
 static int d3d_init_root_signature() {
   ID3DBlob * blob;
   ID3DBlob * err;
-  D3D12_ROOT_SIGNATURE_DESC desc = {0};
+  D3D12_ROOT_SIGNATURE_DESC desc = {
+    .NumParameters           = 2,
+    .pParameters             = (D3D12_ROOT_PARAMETER[]) {{
+      .ParameterType         = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
+      .DescriptorTable       = {
+        .NumDescriptorRanges = 1,
+        .pDescriptorRanges   = (D3D12_DESCRIPTOR_RANGE[]) {{
+          .RangeType         = D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+          .NumDescriptors    = 1,
+        }},
+      },
+    }, {
+      .ParameterType         = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
+      .DescriptorTable       = {
+        .NumDescriptorRanges = 1,
+        .pDescriptorRanges   = (D3D12_DESCRIPTOR_RANGE[]) {{
+          .RangeType         = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER,
+          .NumDescriptors    = 1,
+        }},
+      },
+    }},
+  };
   if (FAILED(D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1_0, &blob, &err))) return (d3d_report_err(err), 1);
   if (err) return (d3d_report_err(err), 1);
 
