@@ -82,6 +82,13 @@ static int d3d_output_errors() {
   return 1;
 }
 
+typedef void (STDMETHODCALLTYPE * d3d_get_gpu_desc_t)(ID3D12DescriptorHeap *, D3D12_GPU_DESCRIPTOR_HANDLE *);
+static D3D12_GPU_DESCRIPTOR_HANDLE d3d_get_gpu_desc(ID3D12DescriptorHeap * heap) {
+  D3D12_GPU_DESCRIPTOR_HANDLE h;
+  ((d3d_get_gpu_desc_t)heap->lpVtbl->GetGPUDescriptorHandleForHeapStart)(heap, &h);
+  return h;
+}
+
 static inline int d3d_enum_adapter_by_gpu(IDXGIFactory6 * f6, unsigned i) {
   return COM_OK(f6, EnumAdapterByGpuPreference, i, DXGI_GPU_PREFERENCE_UNSPECIFIED, &IID_IDXGIAdapter1, (void **)&d3d_adapter);
 }
@@ -428,7 +435,11 @@ int d3d_frame(void) {
   COM(d3d_cmd_list, CopyTextureRegion, &dst, 0, 0, 0, &src, NULL);
   d3d_cmd_transition_barrier(d3d_txt, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
+  COM(d3d_cmd_list, SetDescriptorHeaps, 2, (ID3D12DescriptorHeap *[]) { d3d_txt_heap, d3d_smp_heap });
+
   COM(d3d_cmd_list, SetGraphicsRootSignature, d3d_root_sign);
+  COM(d3d_cmd_list, SetGraphicsRootDescriptorTable, 0, d3d_get_gpu_desc(d3d_txt_heap));
+  COM(d3d_cmd_list, SetGraphicsRootDescriptorTable, 1, d3d_get_gpu_desc(d3d_smp_heap));
 
   D3D12_VIEWPORT vp = { 0, 0, SCR_W, SCR_H };
   COM(d3d_cmd_list, RSSetViewports, 1, &vp);
