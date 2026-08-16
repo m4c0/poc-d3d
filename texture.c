@@ -276,8 +276,8 @@ static int d3d_init_txt(void) {
   D3D12_RESOURCE_DESC res = {
     .Dimension        = D3D12_RESOURCE_DIMENSION_TEXTURE2D,
     .Format           = DXGI_FORMAT_R8G8B8A8_UNORM,
-    .Width            = 16,
-    .Height           = 16,
+    .Width            = 64,
+    .Height           = 64,
     .DepthOrArraySize = 1,
     .MipLevels        = 1,
     .SampleDesc       = (DXGI_SAMPLE_DESC) {
@@ -311,7 +311,7 @@ static int d3d_init_txt(void) {
 
   uint32_t * data;
   COM_CHK(d3d_txt_upload, Map, 0, NULL, (void **)&data);
-  for (int i = 0; i < 16 * 16; i++) data[i] = 0xFF3333FF;
+  for (int i = 0; i < 64 * 64; i++) data[i] = 0xFF3333FF;
   COM(d3d_txt_upload, Unmap, 0, NULL);
 
   return 0;
@@ -407,6 +407,26 @@ int d3d_frame(void) {
   COM_CHK(d3d_cmd_alloc, Reset);
   COM_CHK(d3d_cmd_list, Reset, d3d_cmd_alloc, d3d_pso);
 
+  D3D12_TEXTURE_COPY_LOCATION dst = {
+    .pResource = d3d_txt,
+  };
+  D3D12_TEXTURE_COPY_LOCATION src = {
+    .Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
+    .pResource = d3d_txt_upload,
+    .PlacedFootprint = {
+      .Footprint = {
+        .Format   = DXGI_FORMAT_R8G8B8A8_UNORM,
+        .Width    = 64,
+        .Height   = 64,
+        .Depth    = 1,
+        // Row Pitch must be a multiple of 256 (D3D12_TEXTURE_DATA_PITCH_ALIGNMENT) or
+        // UnrestrictedBufferTextureCopyPitchSupported must be enabled.
+        .RowPitch = 64 * 4,
+      },
+    },
+  };
+  COM(d3d_cmd_list, CopyTextureRegion, &dst, 0, 0, 0, &src, NULL);
+
   COM(d3d_cmd_list, SetGraphicsRootSignature, d3d_root_sign);
 
   D3D12_VIEWPORT vp = { 0, 0, SCR_W, SCR_H };
@@ -426,7 +446,7 @@ int d3d_frame(void) {
 
   d3d_cmd_transition_barrier(D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 
-  COM_CHK(d3d_cmd_list, Close);
+  D3D_CHK(d3d_cmd_list, Close);
 
   ID3D12CommandList * cmd_list = (ID3D12CommandList *)d3d_cmd_list;
   COM(d3d_queue, ExecuteCommandLists, 1, &cmd_list);
