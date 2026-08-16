@@ -393,10 +393,10 @@ void d3d_deinit(void) {
   CloseHandle(d3d_fence_event);
 }
 
-static void d3d_cmd_transition_barrier(D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after) {
+static void d3d_cmd_transition_barrier(ID3D12Resource * res, D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after) {
   D3D12_RESOURCE_BARRIER b = {
     .Transition    = {
-      .pResource   = d3d_rt[d3d_frame_idx],
+      .pResource   = res,
       .StateBefore = before,
       .StateAfter  = after,
     }
@@ -426,6 +426,7 @@ int d3d_frame(void) {
     },
   };
   COM(d3d_cmd_list, CopyTextureRegion, &dst, 0, 0, 0, &src, NULL);
+  d3d_cmd_transition_barrier(d3d_txt, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
   COM(d3d_cmd_list, SetGraphicsRootSignature, d3d_root_sign);
 
@@ -434,7 +435,7 @@ int d3d_frame(void) {
   D3D12_RECT     sc = { 0, 0, SCR_W, SCR_H };
   COM(d3d_cmd_list, RSSetScissorRects, 1, &sc);
 
-  d3d_cmd_transition_barrier(D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+  d3d_cmd_transition_barrier(d3d_rt[d3d_frame_idx], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
   D3D12_CPU_DESCRIPTOR_HANDLE rtv = d3d_get_rtv_cpu_desc(d3d_frame_idx);
   COM(d3d_cmd_list, OMSetRenderTargets, 1, &rtv, FALSE, NULL);
@@ -444,7 +445,7 @@ int d3d_frame(void) {
   COM(d3d_cmd_list, IASetPrimitiveTopology, D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   COM(d3d_cmd_list, DrawInstanced, 3, 1, 0, 0);
 
-  d3d_cmd_transition_barrier(D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+  d3d_cmd_transition_barrier(d3d_rt[d3d_frame_idx], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 
   D3D_CHK(d3d_cmd_list, Close);
 
