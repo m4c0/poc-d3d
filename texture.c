@@ -82,6 +82,13 @@ static int d3d_output_errors() {
   return 1;
 }
 
+typedef void (STDMETHODCALLTYPE * d3d_get_cpu_desc_t)(ID3D12DescriptorHeap *, D3D12_CPU_DESCRIPTOR_HANDLE *);
+static D3D12_CPU_DESCRIPTOR_HANDLE d3d_get_cpu_desc(ID3D12DescriptorHeap * heap) {
+  D3D12_CPU_DESCRIPTOR_HANDLE h;
+  ((d3d_get_cpu_desc_t)heap->lpVtbl->GetCPUDescriptorHandleForHeapStart)(heap, &h);
+  return h;
+}
+
 typedef void (STDMETHODCALLTYPE * d3d_get_gpu_desc_t)(ID3D12DescriptorHeap *, D3D12_GPU_DESCRIPTOR_HANDLE *);
 static D3D12_GPU_DESCRIPTOR_HANDLE d3d_get_gpu_desc(ID3D12DescriptorHeap * heap) {
   D3D12_GPU_DESCRIPTOR_HANDLE h;
@@ -294,6 +301,16 @@ static int d3d_init_txt(void) {
   D3D_CHK(d3d_device, CreateCommittedResource,
       &heap, D3D12_HEAP_FLAG_NONE, &res, D3D12_RESOURCE_STATE_COPY_DEST, NULL, 
       &IID_ID3D12Resource, (void **)&d3d_txt);
+
+  D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {
+    .Format                  = DXGI_FORMAT_R8G8B8A8_UNORM,
+    .ViewDimension           = D3D12_SRV_DIMENSION_TEXTURE2D,
+    .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+    .Texture2D               = {
+      .MipLevels             = 1,
+    },
+  };
+  COM(d3d_device, CreateShaderResourceView, d3d_txt, &srv_desc, d3d_get_cpu_desc(d3d_txt_heap));
 
   uint64_t sz;
   COM(d3d_device, GetCopyableFootprints, &res, 0, 1, 0, NULL, NULL, NULL, &sz);
